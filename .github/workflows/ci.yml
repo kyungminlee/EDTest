@@ -1,0 +1,37 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+      - dev
+  pull_request:
+    branches:
+      - master
+      - dev
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: "1.5"
+      - run: julia -e "using Pkg; Pkg.update()"
+      - run: julia -e "using Pkg; Pkg.Registry.add(RegistrySpec(url=\"https://github.com/kyungminlee/KyungminLeeRegistry.jl.git\"))"
+      - run: julia --project -e 'import Pkg; Pkg.build()'
+      - run: JULIA_NUM_THREADS=2 julia --project --check-bounds=yes -e 'import Pkg; Pkg.test(; coverage=true, julia_args=`--inline=no`)'
+  coverage:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - run: julia -e 'using Pkg; Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder()); Coveralls.submit(process_folder())'
+  docs:
+    if: ${{ github.ref == 'master' }}
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    steps:
+      - run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+      - run: julia --project=docs/ docs/make.jl
